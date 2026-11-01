@@ -199,6 +199,212 @@ psql -U devops -h 127.0.0.1 -d infra -W
 
 Бэкапы:
 
+<img width="920" height="255" alt="Снимок экрана 2026-11-01 в 17 59 17" src="https://github.com/user-attachments/assets/31368ad7-fc4f-4821-88f0-19c91373a39c" />
+
+
+=========================================================
+Репликация БД
+1. физическая
+WAL - файлы
+
+
+2. логичкская
+сами изменения
+
+==========================================================
+
+Репликация в PostgreSQL — это механизм копирования данных с одного сервера (Мастера или Primary) на один или несколько других серверов (Реплик или Standby).
+Основой современной репликации в Postgres являются WAL-файлы (Write-Ahead Logs — журналы предзаписи).
+
+Что такое WAL-файлы и их роль в репликации?
+
+Когда в базе данных происходит любое изменение (например, INSERT или UPDATE), PostgreSQL работает по принципу «сначала запиши в журнал»:
+1. Изменение сначала записывается в бинарный лог на диске — WAL-файл.
+2. Только после этого изменения вносятся в файлы самих таблиц.
+Каждый WAL-файл имеет фиксированный размер (по умолчанию 16 МБ).
+В репликации WAL — это источник правды. Вместо того чтобы пересылать тяжелые таблицы, Мастер просто отправляет Реплике поток своих WAL-файлов. Реплика «проигрывает» эти логи у себя и получает точную копию Мастера.
+
+Виды репликации в PostgreSQL
+
+Репликацию разделяют по двум главным критериям: по способу передачи данных (Физическая vs Логическая) и по моменту подтверждения транзакции (Асинхронная vs Синхронная).
+
+1. Разница по способу передачи данных
+
+
+Критерий	Физическая (Потоковая) репликация	Логическая репликация
+Что передается	WAL-файлы целиком (байт-в-байт копия диска).	Логические команды (стриминг изменений вроде «в таблицу Х добавлена строка Y»).
+Масштаб	Копируется весь сервер целиком (все базы данных и настройки).	Можно выбрать отдельные таблицы или конкретную базу данных.
+Режим Реплики	Только для чтения (Read-Only). Запись запрещена.	На Реплике можно писать свои данные в другие таблицы или создавать индексы.
+Версии Postgres	Версии Мастера и Реплики должны строго совпадать (например, обе 16).	Можно реплицировать данные между разными версиями (например, с 14 на 17).
+Основной кейс	Отказоустойчивость (HA), бэкапы, снятие нагрузки по чтению.	Перенос данных без простоя, сбор данных из разных БД в одно хранилище.
+
+
+2. Разница по моменту подтверждения (Синхронность)
+
+• Асинхронная репликация (по умолчанию):
+	• Как работает: Мастер записывает WAL у себя, подтверждает клиенту успех транзакции и только потом отправляет WAL на реплику.
+	• Плюсы: Максимальная скорость работы. Мастер не ждет реплику.
+	• Минусы: Риск потери данных. Если Мастер «умрет» до того, как WAL долетит до реплики, последние транзакции пропадут.
+• Синхронная репликация:
+	• Как работает: Мастер принял транзакцию, отправил WAL на реплику, дождался от неё подтверждения (что она получила или применила WAL) и только после этого говорит клиенту «готово».
+	• Плюсы: Нулевая потеря данных (RPO=0). При поломке Мастера реплика гарантированно актуальна.
+	• Минусы: Запись становится медленнее (зависит от сетевой задержки до реплики). Если реплика «зависнет», Мастер тоже заблокирует операции записи.
+
+Как именно WAL передаются на реплику?
+
+В физической репликации есть два метода доставки WAL-файлов:
+1. Файловый (WAL-shipping): Мастер полностью заполняет файл 16 МБ, закрывает его и через команду archive_command (например, утилитой rsync) перекидывает файл на реплику. Реплика его подхватывает. Минус: задержка данных может составлять до 16 МБ изменений.
+2. Потоковый (Streaming): Специальный процесс на реплике (walreceiver) подключается к мастеру (walsender) и скачивает WAL-данные непрерывным потоком, буквально побайтово. Это стандарт для современных систем.
+Вы планируете настроить отказоустойчивый кластер (тогда нужна физическая потоковая репликация) или хотите выборочно переносить таблицы между разными базами (нужна логическая)?
+
+
+
+
+Архитектура:
+
+1. master-slave
+
+2. master-master
+
+sudo apt update
+sudo apt install postgresql repmgr 
+
+
+epmgr - (Replication Manager) — это самая популярная и проверенная временем утилита с открытым исходным кодом для управления репликацией и обеспечения высокой доступности (High Availability) в кластерах PostgreSQL
+это ставить и на master и на slave
+
+раскидать ключи пользователя постргрес между вмками
+на master
+sudo -u postgres ssh-keygen -t ed 25519 -N "" -f /var/lib/postgresql/.ssh/id_ed25519
+sudo cat /var/lib/posgresql/.ssh/id_ed25519.pub 
+sudo -u postgres nano /var/lib/postgresql/.ssh/authorized_keys - вставить ключ с slave
+
+на slave 
+sudo -u postgres ssh-keygen -t ed 25519 -N "" -f /var/lib/postgresql/.ssh/id_ed25519
+sudo cat /var/lib/posgresql/.ssh/id_ed25519.pub 
+sudo -u postgres nano /var/lib/postgresql/.ssh/authorized_keys - вставить ключ с master
+
+
+входим по ip с каждой машины по очереди
+sudo -u postgres ssh <ip>
+
+
+=============================
+НА МАСТЕР
+настраивваем конфиги
+sudo nano /etc/postgresql/18/main/postgresql.conf
+
+listen_addresses = '*' - или приватный ip
+
+wal_level = replica
+
+max_wal_senders = 10
+max_replication_slots = 10
+max_keep_size = 256 или 262144
+
+hot_standby = on - настрока позволяющая посылаь на него read запросы
+
+
+настрйока replication connetcion DB между master и slave
+
+sudo nano /etc/postgresql/18/main/pg_hba.conf
+
+в Allow replication connection from localhost, by a user with the replication privilege.
+
+host      replication       repmgr         ip master хоста с масокой        scram-sha-256
+host      replication       repmgr         ip slave хоста с масокой         scram-sha-256
+host      repmgr            repmgr         ip master хоста с масокой        scram-sha-256
+host      repmgr            repmgr         ip slave хоста с масокой         scram-sha-256
+
+
+sudo systemctl restart postgresql
+
+sudo ss -nlpt - проверка что postgres на порту 5432 слушает
+=============================
+НА SLAVE - повторить все тоже самое
+
+=============================
+
+мастер и slave - настройка пользователей postgres и repmgr
+
+sudo -u postgres psql
+CREATE ROLE repmgr WITH LOGIN SUPERUSER PASSWORD 'repmgrpass';
+CREATE DATABASE repmgr OWNER repmgr;
+\q
+
+
+Создать файлик для хранения пароля (сдедать для мастера и слэйв)
+````
+sudo su - postgres
+nano /var/lib/postgresql/.pgpass
+<ip>:5432:repmgr:repmgr:repmgrpass - мастер
+<ip>:5432:replication:replication:repmgrpass  - мастер
+<ip>:5432:repmgr:repmgr:repmgrpass - мастер   - slave
+<ip>:5432:replication:replication:repmgrpass  - slave
+
+exit
+````
+
+Создать конфиг реп менеджер - мастер
+````sudo nano /etc/repmgr.conf````
+````
+node_id=1
+node_name=pg-1
+conninfo='host=<ip-1> user=repmgr dbname=repmgr connect_timeout=5'
+data_directory='/var/lib/postgresql/18/main'
+pg-bindir='/var/lib/postgresql/16/bin'
+passfile='/var/lib/postgresql/.pgpass'
+
+failover=automatic
+promote_command='/usr/bin/repmgr standby promote -f /etc/repmgr.conf'
+follow_command='/usr/bin/repmgr standby promote -f /etc/repmgr.conf --upstream-node-id=%n'
+
+monitoring_history=yes
+monito_interval_sec=5
+reconnect_attemps=5
+reconnect_interval=3
+````
+задать владельца созданым когфигам
+````sudo chown postgres:postgres /etc/repmgt.conf````
+
+для slave
+````sudo nano /etc/repmgr.conf````
+````
+node_id=2
+node_name=pg-2
+conninfo='host=<ip-2> user=repmgr dbname=repmgr connect_timeout=5'
+data_directory='/var/lib/postgresql/18/main'
+pg-bindir='/var/lib/postgresql/16/bin'
+passfile='/var/lib/postgresql/.pgpass'
+
+failover=automatic
+promote_command='/usr/bin/repmgr standby promote -f /etc/repmgr.conf'
+follow_command='/usr/bin/repmgr standby promote -f /etc/repmgr.conf --upstream-node-id=%n'
+
+monitoring_history=yes
+monito_interval_sec=5
+reconnect_attemps=5
+reconnect_interval=3
+````
+задать владельца созданым когфигам
+````sudo chown postgres:postgres /etc/repmgt.conf````
+
+
+Регистрация мастера как мастера:
+````sudo -u postgres repmgr -f /etc/repmgr.conf primary register````
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
