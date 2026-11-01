@@ -52,16 +52,22 @@ create table temp (cource_id int not null references cources(cource_id), student
 
 ````
 добавление данных в таблицу 
+````
 insert into groups (group_name, start_date) values ('dos-36', '2026-10-14'), ('dos-37', '2026-10-15');
-
+````
+````
 insert into students (name, email, group_id) values ('I.Ivanov', 'iivanov@edu.com', 1), ('P.Petrov', 'ppetrov@edu.com', 2);
-
+````
+````
 insert into cources (title, description) values ('DevOps Full', 'Full devops course'), ('K8S', 'only kubernetes');
-
+````
+````
 insert into temp (cource_id, student_id) values (2, 1), (1, 2);
-
+````
 Select примеры:
+````
 select * from students;
+````
 ````
  student_id |   name   |      email      | group_id 
 ------------+----------+-----------------+----------
@@ -69,6 +75,7 @@ select * from students;
           2 | P.Petrov | ppetrov@edu.com |        2
 (2 rows)
 ````
+
 
 
 
