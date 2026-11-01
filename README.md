@@ -120,8 +120,88 @@ insert into groups (group_name, start_date) values ('dos-34', '20206-10-13');
 ````
 rollback;
 ````
-
 ````exit````
+
+Создание пользователя:
+````
+create role devops with login password 'devopspass';
+````
+проверка
+````
+postgres=# \du
+                              List of roles
+ Role name  |                         Attributes                         
+------------+------------------------------------------------------------
+ carss_user | 
+ devops     | 
+ postgres   | Superuser, Create role, Create DB, Replication, Bypass RLS
+````
+создание базы данных с владельцем пользователем devops
+````
+create database infra owner devops;
+````
+проверка
+````
+postgres=# \l
+                                                        List of databases
+   Name    |   Owner    | Encoding | Locale Provider |   Collate   |    Ctype    | Locale | ICU Rules |     Access privileges     
+-----------+------------+----------+-----------------+-------------+-------------+--------+-----------+---------------------------
+ autos     | carss_user | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |        |           | 
+ carss     | carss_user | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |        |           | =Tc/carss_user           +
+           |            |          |                 |             |             |        |           | carss_user=CTc/carss_user
+ infra     | devops     | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |        |           | 
+ postgres  | postgres   | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |        |           | 
+ template0 | postgres   | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |        |           | =c/postgres              +
+           |            |          |                 |             |             |        |           | postgres=CTc/postgres
+ template1 | postgres   | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |        |           | =c/postgres              +
+           |            |          |                 |             |             |        |           | postgres=CTc/postgres
+ univer    | postgres   | UTF8     | libc            | en_US.UTF-8 | en_US.UTF-8 |        |           | 
+(7 rows)
+````
+
+для выдачи прав на доспут в базу вновь созданному пользаку нужно внести настроки в этот файл:
+````sudo nano /etc/postgresql/18/main/pg_hba.conf ````
+
+# Database administrative login by Unix domain socket
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+# IPv4 local connections:
+...
+host    infra           devops          0.0.0.0/0               scram-sha-256
+...
+
+и в ````sudo nano /etc/postgresql/18/main/postgresql.conf````
+#------------------------------------------------------------------------------
+# CONNECTIONS AND AUTHENTICATION
+#------------------------------------------------------------------------------
+
+# - Connection Settings -
+
+listen_addresses = '*'                  # what IP address(es) to listen on;
+
+после - рестартануть сервис
+````sudo systemctl restart postgresql````
+и првоерить порт 5432
+````
+sudo ss -nlpt | grep 5432
+LISTEN 0      200          0.0.0.0:5432      0.0.0.0:*    users:(("postgres",pid=534764,fd=6))                       
+LISTEN 0      200             [::]:5432         [::]:*    users:(("postgres",pid=534764,fd=7)) 
+````
+
+и выполнить вход в среду postgres
+````
+psql -U devops -h 127.0.0.1 -d infra -W
+
+````
+
+!!!!!!!!!!!!!!!!РАЗОБРАТЬСЯ КАК ЗАПУСТИТЬ PG АДМИН!!!!!!!!!!!!!!!
+
+
+
+Бэкапы:
+
+
+
+
 
 
 
