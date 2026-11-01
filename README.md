@@ -111,10 +111,17 @@ select s.name, c.title from temp t join students s on s.student_id = t.student_i
 (2 rows)
 ````
 
+транзакции - либо все запросы выполнились, если один запрос упал, то ничего не применяется
+````begin;````
+````
+insert into groups (group_name, start_date) values ('dos-34', '20206-10-13');
+````
+возврат в случае падения
+````
+rollback;
+````
 
-
-
-
+````exit```
 
 
 
