@@ -121,7 +121,7 @@ insert into groups (group_name, start_date) values ('dos-34', '20206-10-13');
 rollback;
 ````
 
-````exit```
+````exit````
 
 
 
