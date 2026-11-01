@@ -76,6 +76,42 @@ select * from students;
 (2 rows)
 ````
 
+пример запроса где s выступает как аллиас для сокращения длины запроса 
+````
+select s.name from students s;
+````
+````
+   name   
+----------
+ I.Ivanov
+ P.Petrov
+(2 rows)
+````
+
+селекст на выборку из нескольких таблиц (студенты и группы) где условие совпедение id групп
+````
+select s.name, g.group_name from students s join groups g  on g.group_id = s.group_id;
+````
+````
+   name   | group_name 
+----------+------------
+ I.Ivanov | dos-36
+ P.Petrov | dos-37
+(2 rows) 
+````
+
+````
+select s.name, c.title from temp t join students s on s.student_id = t.student_id join cources c on c.cource_id = t.cource_id;
+````
+````
+   name   |    title    
+----------+-------------
+ I.Ivanov | K8S
+ P.Petrov | DevOps Full
+(2 rows)
+````
+
+
 
 
 
