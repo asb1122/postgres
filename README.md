@@ -392,6 +392,91 @@ reconnect_interval=3
 
 Регистрация мастера как мастера:
 ````sudo -u postgres repmgr -f /etc/repmgr.conf primary register````
+или с паролем
+````sudo -u postgres env PGPASSWORD=repmgrpass repmgr -f /etc/repmgr.conf primary register````
+
+
+
+на slave
+
+sudo systemctl stop postgresql
+
+архив если хочецца
+````
+sudo tar -czvf pg-bkp-2026-11-1.tar.gz /var/lib/postgresql/18/main/
+````
+
+обязательная очистка директрии посгреса перед инициализаций кластера
+````
+sudo su - postgres
+sudo rm -rf /var/lib/postgresql/18/main/*
+exit
+````
+
+подтянуть данные с мастера и сказать slave что он slave
+
+````
+sudo -u postgres PGPASSWORD=repmgrpass repmgr -h <ip master> -U repmgr -d repmgr -f /etc/repmgr.conf standby clone
+````
+
+может падать ошибка на pg_basebackup
+ищем через - whereis pg_basebackup 
+
+делаеи так
+````
+sudo mkdir /var/lib/postgresql/18/bin
+sudo ln -a /usr/bin/pg_basebackup /var/lib/postgresql/18/bin/pg_basebackup
+sudo chown -R postgres:postgres /var/lib/postgresql/18/bin
+sudo chmod +x /var/lib/postgresql/18/bin/pg_basebackup
+sudo -u postgres PGPASSWORD=repmgrpass repmgr -h <ip master> -U repmgr -d repmgr -f /etc/repmgr.conf standby clone
+````
+
+sudo systemctl start postgresql
+sudo ss -nlpt
+
+
+регистрация серера как slave
+sudo -u postgres PGPASSWORD=repmgrpass repmgr -h <ip master> -U repmgr -d repmgr -f /etc/repmgr.conf standby register
+
+
+проверки на мастере
+sudo -u postgres PGPASSWORD=repmgrpass repmgr -h <ip master> -U repmgr -d repmgr -f /etc/repmgr.conf cluster show
+sudo -u postgres PGPASSWORD=repmgrpass repmgr -h <ip master> -U repmgr -d repmgr -f /etc/repmgr.conf node status
+
+если затыки - видео 2:08
+
+
+
+шаги
+1/ ssh конфигурауия для постгрес юзера
+2/ 
+pg_conf
+listen addres = *
+
+wal level=replica
+max_wal_senders=10
+max-replication_slot=10
+wal_keep_size=256
+hot_standby=on
+pg_hba.conf
+
+3/ созать в базе пользователя repmgr
+4/ создать .pgpass - данные для подключения - (owner postgres)
+5/ создать repmgr.conf для мастера и слейва
+6/ регистрация мастера
+7/ на слейв остановить pg, удалить старые данные, сделать кллн с мастера, запуск pg и регистрация
+
+
+2:48 - haproxy
+
+
+
+
+
+
+
+
+
 
 
 
